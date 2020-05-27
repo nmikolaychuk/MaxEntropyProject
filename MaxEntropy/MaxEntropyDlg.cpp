@@ -271,9 +271,9 @@ void CMaxEntropyDlg::Graph1(double* Mass, CDC* WinDc, CRect WinPic, CPen* graphp
 	font.CreateFontW(14.5, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Century Gothic"));
 	MemDc->SelectObject(&font);
 	// подпись оси X
-	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("x"));
+	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("t"));
 	// подпись оси Y
-	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("Ampl"));
+	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("A"));
 	// выбор области для рисования
 	xx0 = WinPic.Width() * 1 / 15; xxmax = WinPic.Width();
 	yy0 = WinPic.Height() / 10; yymax = WinPic.Height() * 9 / 10;
@@ -385,9 +385,9 @@ void CMaxEntropyDlg::Graph2(double* Mass1, CPen* graph1pen, double* Mass2, CPen*
 	font.CreateFontW(14.5, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Century Gothic"));
 	MemDc->SelectObject(&font);
 	// подпись оси X
-	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("x"));
+	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("t"));
 	// подпись оси Y
-	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("Ampl"));
+	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("A"));
 	// выбор области для рисования
 	xx0 = WinPic.Width() * 1 / 15; xxmax = WinPic.Width();
 	yy0 = WinPic.Height() / 10; yymax = WinPic.Height() * 9 / 10;
