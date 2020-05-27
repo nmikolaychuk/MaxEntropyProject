@@ -86,6 +86,7 @@ BEGIN_MESSAGE_MAP(CMaxEntropyDlg, CDialogEx)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_DRAW_SIGNAL, &CMaxEntropyDlg::OnBnClickedDrawSignal)
 	ON_WM_SYSCOMMAND()
+	ON_BN_CLICKED(ID_BUTTON_DROP_ANIM, &CMaxEntropyDlg::OnBnClickedButtonDropAnim)
 END_MESSAGE_MAP()
 
 
@@ -246,13 +247,13 @@ void CMaxEntropyDlg::Graph1(double* Mass, CDC* WinDc, CRect WinPic, CPen* graphp
 	// отрисовка сетки координат
 	MemDc->SelectObject(&setka_pen);
 	// вертикальные линии сетки координат
-	for (double i = WinPic.Width() / 6; i < WinPic.Width(); i += WinPic.Width() / 6)
+	for (double i = 0; i < WinPic.Width(); i += WinPic.Width() / 6)
 	{
 		MemDc->MoveTo(i, 0);
 		MemDc->LineTo(i, WinPic.Height());
 	}
 	// горизонтальные линии сетки координат
-	for (double i = WinPic.Height() / 4; i < WinPic.Height(); i += WinPic.Height() / 4)
+	for (double i = WinPic.Height() / 10; i < WinPic.Height(); i += WinPic.Height() / 5)
 	{
 		MemDc->MoveTo(0, i);
 		MemDc->LineTo(WinPic.Width(), i);
@@ -292,13 +293,13 @@ void CMaxEntropyDlg::Graph1(double* Mass, CDC* WinDc, CRect WinPic, CPen* graphp
 	for (int i = 1; i < 6; i++)
 	{
 		sprintf_s(znach, "%.1f", i * AbsMax / 6);
-		MemDc->TextOut(i * WinPic.Width() / 6, WinPic.Height() * 9 / 10 + 2, CString(znach));
+		MemDc->TextOut(i * (WinPic.Width() / 6) - AbsMax * 0.09, WinPic.Height() * 9 / 10 + 2, CString(znach));
 	}
 	// по оси Y
 	for (int i = 1; i < 5; i++)
 	{
 		sprintf_s(znach, "%.2f", Min + i * (Max - Min) / 4);
-		MemDc->TextOut(0, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
+		MemDc->TextOut(0 + AbsMax * 0.1, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
 	}
 	// вывод на экран
 	WinDc->BitBlt(0, 0, WinPic.Width(), WinPic.Height(), MemDc, 0, 0, SRCCOPY);
@@ -361,13 +362,13 @@ void CMaxEntropyDlg::Graph2(double* Mass1, CPen* graph1pen, double* Mass2, CPen*
 	// отрисовка сетки координат
 	MemDc->SelectObject(&setka_pen);
 	// вертикальные линии сетки координат
-	for (double i = WinPic.Width() / 5; i < WinPic.Width(); i += WinPic.Width() / 5)
+	for (double i = 0; i < WinPic.Width(); i += WinPic.Width() / 6)
 	{
 		MemDc->MoveTo(i, 0);
 		MemDc->LineTo(i, WinPic.Height());
 	}
 	// горизонтальные линии сетки координат
-	for (double i = WinPic.Height() / 4; i < WinPic.Height(); i += WinPic.Height() / 4)
+	for (double i = WinPic.Height() / 10; i < WinPic.Height(); i += WinPic.Height() / 5)
 	{
 		MemDc->MoveTo(0, i);
 		MemDc->LineTo(WinPic.Width(), i);
@@ -412,16 +413,16 @@ void CMaxEntropyDlg::Graph2(double* Mass1, CPen* graph1pen, double* Mass2, CPen*
 	// вывод числовых значений
 	// по оси X
 	MemDc->SelectObject(&font);
-	for (int i = 1; i < 6; i += 1)
+	for (int i = 1; i < 6; i++)
 	{
-		sprintf_s(znach, "%5.1f", i * AbsMax / 6);
-		MemDc->TextOut(i * WinPic.Width() / 6, WinPic.Height() * 9 / 10 + 2, CString(znach));
+		sprintf_s(znach, "%.1f", i * AbsMax / 6);
+		MemDc->TextOut(i * (WinPic.Width() / 6) - AbsMax * 0.09, WinPic.Height() * 9 / 10 + 2, CString(znach));
 	}
 	// по оси Y
-	for (int i = 0; i < 5; i++)
+	for (int i = 1; i < 5; i++)
 	{
-		sprintf_s(znach, "%5.2f", Min + i * (Max - Min) / 4);
-		MemDc->TextOut(0, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
+		sprintf_s(znach, "%.2f", Min + i * (Max - Min) / 4);
+		MemDc->TextOut(0 + AbsMax * 0.1, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
 	}
 	// вывод на экран
 	WinDc->BitBlt(0, 0, WinPic.Width(), WinPic.Height(), MemDc, 0, 0, SRCCOPY);
@@ -734,6 +735,10 @@ void CMaxEntropyDlg::OnBnClickedDraw()
 {
 	// TODO: добавьте свой код обработчика уведомлений
 	UpdateData(TRUE);
+	SignalFlag = false;
+	ImpulseFlag = false;
+	SvertkaFlag = false;
+
 	if (!bRunTh)
 	{
 		StartStopOptimization.SetWindowTextW(stop);
@@ -750,14 +755,6 @@ void CMaxEntropyDlg::OnBnClickedDraw()
 
 			hThread = CreateThread(NULL, 0, MyProc, this, 0, &dwThread);
 			DeconvFlag = true;
-			Graph2(sign, &signal_pen, Deconv, &vosstanovl_pen, PicDc, Pic, Length);
-
-			ofstream out("lambda.txt");
-			for (int i = 0; i < Length; i++)
-			{
-				out << lambda[i] << "\n";
-			}
-			out.close();
 		}
 		else
 		{
@@ -772,4 +769,24 @@ void CMaxEntropyDlg::OnBnClickedDraw()
 
 		SuspendThread(hThread);
 	}
+}
+
+
+void CMaxEntropyDlg::OnBnClickedButtonDropAnim()
+{
+	// TODO: добавьте свой код обработчика уведомлений
+	UpdateData(TRUE);
+	TerminateThread(hThread, 0);		//убиваем поток
+	CloseHandle(hThread);
+	hThread = NULL;
+
+	StartStopOptimization.SetWindowTextW(start);
+	bRunTh = false;
+
+	DeconvFlag = false;
+	Graph1(sign, PicDc, Pic, &signal_pen, Length);
+	Graph1(imp, PicDcImp, PicImp, &impulse_pen, Length);
+	Graph1(svert, PicDcSvrk, PicSvrk, &svertka_pen, Length);
+
+	error.SetWindowTextW(L"");
 }

@@ -5,6 +5,7 @@
 #define IDC_DRAW                        3
 #define IDC_DRAW_SIGNAL                 4
 #define IDC_GEN_NOISE                   5
+#define IDCANCEL2                       5
 #define IDD_MAXENTROPY_DIALOG           102
 #define IDR_MAINFRAME                   128
 #define IDC_AMPL_1                      1000
@@ -28,6 +29,7 @@
 #define IDC_EDIT_NOISE                  1020
 #define IDC_EDIT1                       1021
 #define IDC_EDIT_ERROR                  1021
+#define ID_BUTTON_DROP_ANIM             1022
 
 // Next default values for new objects
 // 
@@ -35,7 +37,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        130
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         1022
+#define _APS_NEXT_CONTROL_VALUE         1023
 #define _APS_NEXT_SYMED_VALUE           101
 #endif
 #endif

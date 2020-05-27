@@ -98,4 +98,5 @@ public:
 	BOOL bRunTh = false;		// переменная, показывающая, запущен ли процесс
 	CString start = L"Запуск";		// строки с именем кнопки для каждого случая
 	CString stop = L"Остановка";
+	afx_msg void OnBnClickedButtonDropAnim();
 };
