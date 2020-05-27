@@ -3,21 +3,18 @@
 //
 
 #pragma once
-
+#include "stdafx.h"
 
 // Диалоговое окно CMaxEntropyDlg
 class CMaxEntropyDlg : public CDialogEx
 {
-// Создание
+	// Создание
 public:
-	CMaxEntropyDlg(CWnd* pParent = nullptr);	// стандартный конструктор
+	CMaxEntropyDlg(CWnd* pParent = NULL);	// стандартный конструктор
 
 // Данные диалогового окна
-#ifdef AFX_DESIGN_TIME
 	enum { IDD = IDD_MAXENTROPY_DIALOG };
-#endif
-
-	protected:
+protected:
 	virtual void DoDataExchange(CDataExchange* pDX);	// поддержка DDX/DDV
 
 
@@ -32,16 +29,27 @@ protected:
 	DECLARE_MESSAGE_MAP()
 public:
 
-	CWnd * PicWnd;				//области рисования
-	CDC * PicDc;
+	double s(int t);		//функция сигнала
+	void Mashtab(double arr[], int dim, double* mmin, double* mmax);		//функция масштаба
+	double MHJ(int kk, float* x);		//метод Хука-Дживса
+	double function(float* x);
+	double Psi();
+	void Graph1(double*, CDC*, CRect, CPen*, double);
+	void Graph2(double*, CPen*, double*, CPen*, CDC*, CRect, double);
+
+	DWORD dwThread;
+	HANDLE hThread;
+
+	CWnd* PicWnd;				//области рисования
+	CDC* PicDc;
 	CRect Pic;
 
-	CWnd * PicWndImp;
-	CDC * PicDcImp;
+	CWnd* PicWndImp;
+	CDC* PicDcImp;
 	CRect PicImp;
 
-	CWnd * PicWndSvrk;
-	CDC * PicDcSvrk;
+	CWnd* PicWndSvrk;
+	CDC* PicDcSvrk;
 	CRect PicSvrk;
 
 	CPen osi_pen;				//ручки
@@ -51,29 +59,16 @@ public:
 	CPen svertka_pen;
 	CPen vosstanovl_pen;
 
-	double xp, yp,				//коэфициенты пересчета
-		xmin, xmax,				//максисимальное и минимальное значение х 
-		ymin, ymax,				//максисимальное и минимальное значение y
-		mn, mx;					//коэффициенты масштабирования
+	int Length;				//длина сигнала
 
-	double xp_imp, yp_imp,		//коэфициенты пересчета
-		xmin_imp, xmax_imp,		//максисимальное и минимальное значение х 
-		ymin_imp, ymax_imp,		//максисимальное и минимальное значение y
-		mn_imp, mx_imp;			//коэффициенты масштабирования
-
-	double xp_svrk, yp_svrk,	//коэфициенты пересчета
-		xmin_svrk, xmax_svrk,	//максисимальное и минимальное значение х 
-		ymin_svrk, ymax_svrk,	//максисимальное и минимальное значение y
-		mn_svrk, mx_svrk;		//коэффициенты масштабирования
-
-	double sign[50];			//глобальный массив для сигнала
-	double imp[50];				//глобальный массив для имп.характеристики
-	double svert[50];			//глобальный массив для свертки
-	double lambda[50];			//глобальный массив лямбд(неопр.мн-ль Лагранжа)
+	double* sign;			//глобальный массив для сигнала
+	double* imp;				//глобальный массив для имп.характеристики
+	double* svert;			//глобальный массив для свертки
+	float* lambda;			//глобальный массив лямбд(неопр.мн-ль Лагранжа)
+	double* Deconv;
 	int iter;
 
 	double Pi = 3.141592653589;
-	double Length;				//длина сигнала
 	double amplitude_1;			//амплитуды сигнала
 	double amplitude_2;
 	double amplitude_3;
@@ -87,18 +82,20 @@ public:
 	double precision;			//точность вычисления для MHJ(оптимизация)
 	double anim_time;			//длительность каждого "кадра" анимации(мс) для MHJ
 	double energ_noise;			//уровень шума в процентах
-	int calc;
-	CString err_value;
-	
+	bool SignalFlag, ImpulseFlag, SvertkaFlag, DeconvFlag;
+	char err[100];
+	char znach[1000];
+
 	afx_msg void OnBnClickedDraw();				//обработчик кнопки рисования анимации
 	afx_msg void OnBnClickedDrawSignal();		//обработчик кнопки рисования сигнала
-	afx_msg void OnTimer(UINT_PTR nIDEvent);
+	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+	CEdit error;
 
-	void RedrawAll();			//функция перерисовки диалога
+	double Min, Max, Min1, Max1, Min2, Max2;
+	double xx0, xxmax, yy0, yymax, xxi, yyi;
 
-	double CMaxEntropyDlg::s(int t);		//функция сигнала
-	void CMaxEntropyDlg::Mashtab(double arr[], int dim, double *mmin, double *mmax);		//функция масштаба
-	double CMaxEntropyDlg::MHJ(int kk, double* x);		//метод Хука-Дживса
-	double CMaxEntropyDlg::function(double*x);
-	double CMaxEntropyDlg::Psi();						//рандомизация для шума
+	CButton StartStopOptimization;
+	BOOL bRunTh = false;		// переменная, показывающая, запущен ли процесс
+	CString start = L"Запуск";		// строки с именем кнопки для каждого случая
+	CString stop = L"Остановка";
 };

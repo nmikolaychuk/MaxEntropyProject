@@ -1,4 +1,4 @@
-﻿
+﻿#define _CRT_SECURE_NO_WARNINGS
 // MaxEntropyDlg.cpp: файл реализации
 //
 
@@ -23,7 +23,7 @@ using namespace std;
 
 // Диалоговое окно CMaxEntropyDlg
 
-void CMaxEntropyDlg::Mashtab(double arr[], int dim, double *mmin, double *mmax)		//определяем функцию масштабирования
+void CMaxEntropyDlg::Mashtab(double arr[], int dim, double* mmin, double* mmax)		//определяем функцию масштабирования
 {
 	*mmin = *mmax = arr[0];
 
@@ -47,10 +47,13 @@ CMaxEntropyDlg::CMaxEntropyDlg(CWnd* pParent /*=nullptr*/)
 	, center_pos_2(30)
 	, center_pos_3(40)
 	, dispersion_imp(4)
-	, err_value(_T(""))
 	, precision(1.e-6)
 	, anim_time(200)
 	, energ_noise(0)
+	, SignalFlag(false)
+	, ImpulseFlag(false)
+	, SvertkaFlag(false)
+	, DeconvFlag(false)
 {
 	m_hIcon = AfxGetApp()->LoadIcon(IDR_MAINFRAME);
 }
@@ -69,10 +72,11 @@ void CMaxEntropyDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_CENTER_2, center_pos_2);
 	DDX_Text(pDX, IDC_CENTER_3, center_pos_3);
 	DDX_Text(pDX, IDC_DISP_IMP, dispersion_imp);
-	DDX_Text(pDX, IDC_STATIC_ERR, err_value);
 	DDX_Text(pDX, IDC_EDIT_PRECISION, precision);
 	DDX_Text(pDX, IDC_ANIM_TIME, anim_time);
 	DDX_Text(pDX, IDC_EDIT_NOISE, energ_noise);
+	DDX_Control(pDX, IDC_EDIT_ERROR, error);
+	DDX_Control(pDX, IDC_DRAW, StartStopOptimization);
 }
 
 BEGIN_MESSAGE_MAP(CMaxEntropyDlg, CDialogEx)
@@ -81,6 +85,7 @@ BEGIN_MESSAGE_MAP(CMaxEntropyDlg, CDialogEx)
 	ON_BN_CLICKED(IDC_DRAW, &CMaxEntropyDlg::OnBnClickedDraw)
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_DRAW_SIGNAL, &CMaxEntropyDlg::OnBnClickedDrawSignal)
+	ON_WM_SYSCOMMAND()
 END_MESSAGE_MAP()
 
 
@@ -144,6 +149,13 @@ BOOL CMaxEntropyDlg::OnInitDialog()
 	return TRUE;  // возврат значения TRUE, если фокус не передан элементу управления
 }
 
+void CMaxEntropyDlg::OnSysCommand(UINT nID, LPARAM lParam)
+{
+	// TODO: добавьте свой код обработчика сообщений или вызов стандартного
+
+	CDialog::OnSysCommand(nID, lParam);
+
+}
 // При добавлении кнопки свертывания в диалоговое окно нужно воспользоваться приведенным ниже кодом,
 //  чтобы нарисовать значок.  Для приложений MFC, использующих модель документов или представлений,
 //  это автоматически выполняется рабочей областью.
@@ -170,8 +182,24 @@ void CMaxEntropyDlg::OnPaint()
 	else
 	{
 		CDialogEx::OnPaint();
+		UpdateData(false);
 
-		RedrawAll();			//функция перерисовки
+		if (SignalFlag == true)
+		{
+			Graph1(sign, PicDc, Pic, &signal_pen, Length);
+		}
+		if (ImpulseFlag == true)
+		{
+			Graph1(imp, PicDcImp, PicImp, &impulse_pen, Length);
+		}
+		if (SvertkaFlag == true)
+		{
+			Graph1(svert, PicDcSvrk, PicSvrk, &svertka_pen, Length);
+		}
+		if (DeconvFlag == true)
+		{
+			Graph2(sign, &signal_pen, Deconv, &vosstanovl_pen, PicDc, Pic, Length);
+		}
 	}
 }
 
@@ -182,520 +210,359 @@ HCURSOR CMaxEntropyDlg::OnQueryDragIcon()
 	return static_cast<HCURSOR>(m_hIcon);
 }
 
-void CMaxEntropyDlg::RedrawAll()		//функция отрисовки/перерисовки
+DWORD WINAPI MyProc(PVOID pv)
 {
-	double *signal = new double[Length];
-	memset(signal, 0, Length * sizeof(double));
+	CMaxEntropyDlg* p = (CMaxEntropyDlg*)pv;
+	p->MHJ(p->Length, p->lambda);
+	return 0;
+}
 
-	for (int i = 0; i < Length; i++)
+void CMaxEntropyDlg::Graph1(double* Mass, CDC* WinDc, CRect WinPic, CPen* graphpen, double AbsMax)
+{
+	// поиск максимального и минимального значения
+	Min = Mass[0];
+	Max = Mass[0];
+	for (int i = 1; i < Length; i++)
 	{
-		signal[i] = s(i);
-	}
-
-	double d = energ_noise / 100;
-
-	double mas_energsignal = 0;
-	for (int t = 0; t < Length; t++)
-	{
-		mas_energsignal += signal[t] * signal[t];
-	}
-
-	double *mas_psi = new double[Length];
-	memset(mas_psi, 0, Length * sizeof(double));
-	for (int t = 0; t < Length; t++)
-	{
-		mas_psi[t] = Psi();
-	}
-
-	double qpsi = 0;
-	for (int t = 0; t < Length; t++)
-	{
-		qpsi += mas_psi[t] * mas_psi[t];
-	}
-
-	double alpha = sqrt(d * mas_energsignal / qpsi);
-
-	double *mas_shum = new double[Length];
-	memset(mas_shum, 0, Length * sizeof(double));
-	for (int i = 0; i < Length; i++)
-	{
-		mas_shum[i] = signal[i] + alpha * mas_psi[i];
-	}
-
-	double *impulse = new double[Length];
-	memset(impulse, 0, Length * sizeof(double));
-
-	double *impulse_norm = new double[Length];
-	memset(impulse_norm, 0, Length * sizeof(double));
-
-	double sum_imp = 0;
-
-	for (int i = 0; i < Length; i++)
-	{
-		impulse[i] = exp(-(i / dispersion_imp)*(i / dispersion_imp)) + exp(-((i - Length) / dispersion_imp)*((i - Length) / dispersion_imp));
-	}
-
-	for (int i = 0; i < Length; i++)
-	{
-		sum_imp += impulse[i];
-	}
-
-	for (int i = 0; i < Length; i++)
-	{
-		impulse_norm[i] = impulse[i] / sum_imp;
-	}
-
-	double *svertka = new double[Length];
-	memset(svertka, 0, Length * sizeof(double));
-
-	int buff = 0;
-	for (int k = 0; k < Length; k++)
-	{
-		for (int i = 0; i < Length; i++)
+		if (Mass[i] < Min)
 		{
-			if (k - i < 0)
-			{
-				buff = Length + (k - i);
-				svertka[k] += signal[i] * impulse_norm[buff];
-			}
-			else
-			{
-				svertka[k] += signal[i] * impulse_norm[k - i];
-			}
+			Min = Mass[i];
+		}
+		if (Mass[i] > Max)
+		{
+			Max = Mass[i];
 		}
 	}
-
-	PicDc->FillSolidRect(&Pic, RGB(250, 250, 250));			//закрашиваю фон 
-
-	PicDc->SelectObject(&osi_pen);		//выбираем перо
-
-	mn = 0; mx = 0; mn_imp = 0; mx_imp = 0; mn_svrk = 0; mx_svrk = 0;
-
-	Mashtab(signal, Length, &mn, &mx);
-	Mashtab(impulse_norm, Length, &mn_imp, &mx_imp);
-	Mashtab(svertka, Length, &mn_svrk, &mx_svrk);
-
-
-	//область построения
-	xmin = 0;			//минимальное значение х
-	xmax = Length;			//максимальное значение х
-	ymin = mn - 0.18*mx;			//минимальное значение y
-	ymax = mx * 1.2;		//максимальное значение y
-
-	double window_signal_width = Pic.Width();
-	double window_signal_height = Pic.Height();
-	xp = (window_signal_width / (xmax - xmin));			//Коэффициенты пересчёта координат по Х
-	yp = -(window_signal_height / (ymax - ymin));			//Коэффициенты пересчёта координат по У
-
+	// отрисовка
+	// создание контекста устройства
+	CBitmap bmp;
+	CDC* MemDc;
+	MemDc = new CDC;
+	MemDc->CreateCompatibleDC(WinDc);
+	bmp.CreateCompatibleBitmap(WinDc, WinPic.Width(), WinPic.Height());
+	CBitmap* pBmp = (CBitmap*)MemDc->SelectObject(&bmp);
+	// заливка фона графика белым цветом
+	MemDc->FillSolidRect(WinPic, RGB(255, 255, 255));
+	// отрисовка сетки координат
+	MemDc->SelectObject(&setka_pen);
+	// вертикальные линии сетки координат
+	for (double i = WinPic.Width() / 6; i < WinPic.Width(); i += WinPic.Width() / 6)
+	{
+		MemDc->MoveTo(i, 0);
+		MemDc->LineTo(i, WinPic.Height());
+	}
+	// горизонтальные линии сетки координат
+	for (double i = WinPic.Height() / 4; i < WinPic.Height(); i += WinPic.Height() / 4)
+	{
+		MemDc->MoveTo(0, i);
+		MemDc->LineTo(WinPic.Width(), i);
+	}
+	// отрисовка осей
+	MemDc->SelectObject(&osi_pen);
+	// отрисовка оси X
 	//создаём Ось Y
-	PicDc->MoveTo(DOTS(0, ymax));
-	PicDc->LineTo(DOTS(0, ymin));
-	//создаём Ось Х
-	PicDc->MoveTo(DOTS(xmin, 0));
-	PicDc->LineTo(DOTS(xmax, 0));
-
-	PicDc->SelectObject(&setka_pen);
-
-	//отрисовка сетки по y
-	for (double x = 0; x <= xmax; x += Length / 5)
-	{
-		PicDc->MoveTo(DOTS(x, ymax));
-		PicDc->LineTo(DOTS(x, ymin));
-	}
-	//отрисовка сетки по x
-	for (double y = 0; y <= ymax; y += ymax / 5)
-	{
-		PicDc->MoveTo(DOTS(xmin, y));
-		PicDc->LineTo(DOTS(xmax, y));
-	}
-
-
-	//подпись точек на оси
+	MemDc->MoveTo(0, WinPic.Height() * 9 / 10); MemDc->LineTo(WinPic.Width(), WinPic.Height() * 9 / 10);
+	// отрисовка оси Y
+	MemDc->MoveTo(WinPic.Width() * 1 / 15, WinPic.Height()); MemDc->LineTo(WinPic.Width() * 1 / 15, 0);
+	// установка прозрачного фона текста
+	MemDc->SetBkMode(TRANSPARENT);
+	// установка шрифта
 	CFont font;
-	font.CreateFontW(16, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Times New Roman"));
-	PicDc->SelectObject(font);
-
-	//подпись осей
-	PicDc->TextOutW(DOTS(Length / 10, ymax - 0.2), _T("X")); //Y
-	PicDc->TextOutW(DOTS(xmax - 2, 0 + 0.8), _T("t")); //X
-
-	//по Y с шагом 5
-	for (double i = 0; i <= ymax; i += ymax / 5)
+	font.CreateFontW(14.5, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Century Gothic"));
+	MemDc->SelectObject(&font);
+	// подпись оси X
+	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("x"));
+	// подпись оси Y
+	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("Ampl"));
+	// выбор области для рисования
+	xx0 = WinPic.Width() * 1 / 15; xxmax = WinPic.Width();
+	yy0 = WinPic.Height() / 10; yymax = WinPic.Height() * 9 / 10;
+	// отрисовка
+	MemDc->SelectObject(graphpen);
+	MemDc->MoveTo(xx0, yymax + (Mass[0] - Min) / (Max - Min) * (yy0 - yymax));
+	for (int i = 0; i < Length; i++)
 	{
-		CString str;
-		if (i != 0)
-		{
-			str.Format(_T("%.1f"), i);
-			PicDc->TextOutW(DOTS(1, i + 0.25), str);
-		}
+		xxi = xx0 + (xxmax - xx0) * i / (Length - 1);
+		yyi = yymax + (Mass[i] - Min) / (Max - Min) * (yy0 - yymax);
+		MemDc->LineTo(xxi, yyi);
 	}
-	//по X с шагом 0.5
-	for (double j = 0; j <= xmax; j += Length / 5)
+	/* вывод числовых значений
+	 по оси X*/
+	MemDc->SelectObject(&font);
+	for (int i = 1; i < 6; i++)
 	{
-		CString str;
-		str.Format(_T("%.1f"), j);
-		PicDc->TextOutW(DOTS(j - 1, -0.1), str);
+		sprintf_s(znach, "%.1f", i * AbsMax / 6);
+		MemDc->TextOut(i * WinPic.Width() / 6, WinPic.Height() * 9 / 10 + 2, CString(znach));
 	}
-
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-
-	PicDcImp->FillSolidRect(&PicImp, RGB(250, 250, 250));			//закрашиваю фон 
-
-	PicDcImp->SelectObject(&osi_pen);		//выбираем перо
-
-	//область построения
-	xmin_imp = 0;			//минимальное значение х
-	xmax_imp = Length;			//максимальное значение х
-	ymin_imp = mn_imp - 0.18*mx_imp;			//минимальное значение y
-	ymax_imp = 1.2 * mx_imp;		//максимальное значение y
-
-	double window_impulse_width = PicImp.Width();
-	double window_impulse_height = PicImp.Height();
-	xp_imp = (window_impulse_width / (xmax_imp - xmin_imp));			//Коэффициенты пересчёта координат по Х
-	yp_imp = -(window_impulse_height / (ymax_imp - ymin_imp));			//Коэффициенты пересчёта координат по У
-
-	//создаём Ось Y
-	PicDcImp->MoveTo(DOTS_IMP(0, ymax_imp));
-	PicDcImp->LineTo(DOTS_IMP(0, ymin_imp));
-	//создаём Ось Х
-	PicDcImp->MoveTo(DOTS_IMP(xmin_imp, 0));
-	PicDcImp->LineTo(DOTS_IMP(xmax_imp, 0));
-
-	PicDcImp->SelectObject(&setka_pen);
-
-	//отрисовка сетки по y
-	for (double x = 0; x <= xmax_imp; x += Length / 5)
+	// по оси Y
+	for (int i = 1; i < 5; i++)
 	{
-		PicDcImp->MoveTo(DOTS_IMP(x, ymax_imp));
-		PicDcImp->LineTo(DOTS_IMP(x, ymin_imp));
+		sprintf_s(znach, "%.2f", Min + i * (Max - Min) / 4);
+		MemDc->TextOut(0, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
 	}
-	//отрисовка сетки по x
-	for (double y = 0; y <= ymax_imp; y += ymax_imp / 5)
-	{
-		PicDcImp->MoveTo(DOTS_IMP(xmin_imp, y));
-		PicDcImp->LineTo(DOTS_IMP(xmax_imp, y));
-	}
-
-
-	//подпись точек на оси
-	CFont font1;
-	font1.CreateFontW(16, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Times New Roman"));
-	PicDcImp->SelectObject(font1);
-
-	//подпись осей
-	PicDcImp->TextOutW(DOTS_IMP(Length / 8, ymax_imp - 0.006), _T("h")); //Y
-	PicDcImp->TextOutW(DOTS_IMP(xmax_imp - 12, 0 - 0.1), _T("t")); //X
-
-	//по Y с шагом 5
-	for (double i = 0; i <= ymax_imp; i += ymax_imp / 5)
-	{
-		CString str;
-		if (i != 0)
-		{
-			str.Format(_T("%.3f"), i);
-			PicDcImp->TextOutW(DOTS_IMP(1, i + 0.006), str);
-		}
-	}
-
-	//по X с шагом 0.5
-	for (double j = 0; j <= xmax_imp; j += Length / 5)
-	{
-		CString str;
-		str.Format(_T("%.1f"), j);
-		PicDcImp->TextOutW(DOTS_IMP(j - 1, -0.002), str);
-	}
-
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-	PicDcSvrk->FillSolidRect(&PicSvrk, RGB(250, 250, 250));			//закрашиваю фон 
-
-	PicDcSvrk->SelectObject(&osi_pen);		//выбираем перо
-
-	//область построения
-	xmin_svrk = 0;			//минимальное значение х
-	xmax_svrk = Length;			//максимальное значение х
-	ymin_svrk = mn_svrk - 0.2*mx_svrk;			//минимальное значение y
-	ymax_svrk = 1.2 * mx_svrk;		//максимальное значение y
-
-	double window_svrk_width = PicSvrk.Width();
-	double window_svrk_height = PicSvrk.Height();
-	xp_svrk = (window_svrk_width / (xmax_svrk - xmin_svrk));			//Коэффициенты пересчёта координат по Х
-	yp_svrk = -(window_svrk_height / (ymax_svrk - ymin_svrk));			//Коэффициенты пересчёта координат по У
-
-	//создаём Ось Y
-	PicDcSvrk->MoveTo(DOTS_SVRK(0, ymax_svrk));
-	PicDcSvrk->LineTo(DOTS_SVRK(0, ymin_svrk));
-	//создаём Ось Х
-	PicDcSvrk->MoveTo(DOTS_SVRK(xmin_svrk, 0));
-	PicDcSvrk->LineTo(DOTS_SVRK(xmax_svrk, 0));
-
-	PicDcSvrk->SelectObject(&setka_pen);
-
-	//отрисовка сетки по y
-	for (double x = 0; x <= xmax_svrk; x += Length / 5)
-	{
-		PicDcSvrk->MoveTo(DOTS_SVRK(x, ymax_svrk));
-		PicDcSvrk->LineTo(DOTS_SVRK(x, ymin_svrk));
-	}
-	//отрисовка сетки по x
-	for (double y = 0; y <= ymax_svrk; y += ymax_svrk / 5)
-	{
-		PicDcSvrk->MoveTo(DOTS_SVRK(xmin_svrk, y));
-		PicDcSvrk->LineTo(DOTS_SVRK(xmax_svrk, y));
-	}
-
-
-	//подпись точек на оси
-	CFont font2;
-	font2.CreateFontW(16, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Times New Roman"));
-	PicDcSvrk->SelectObject(font2);
-
-	//подпись осей
-	PicDcSvrk->TextOutW(DOTS_SVRK(Length / 13, ymax_svrk - 0.2), _T("Y")); //Y
-	PicDcSvrk->TextOutW(DOTS_SVRK(xmax_svrk - 2, 0.5), _T("t")); //X
-
-	//по Y с шагом 5
-	for (double i = 0; i <= ymax_svrk; i += ymax_svrk / 5)
-	{
-		CString str;
-		if (i != 0)
-		{
-			str.Format(_T("%.1f"), i);
-			PicDcSvrk->TextOutW(DOTS_SVRK(1, i + 0.1), str);
-		}
-	}
-	//по X с шагом 0.5
-	for (double j = 0; j <= xmax_svrk; j += Length / 5)
-	{
-		CString str;
-		str.Format(_T("%.1f"), j);
-		PicDcSvrk->TextOutW(DOTS_SVRK(j - 1, -0.1), str);
-	}
-
-	delete signal;
-	delete mas_psi;
-	delete mas_shum;
-	delete impulse_norm;
-	delete svertka;
-	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+	// вывод на экран
+	WinDc->BitBlt(0, 0, WinPic.Width(), WinPic.Height(), MemDc, 0, 0, SRCCOPY);
+	delete MemDc;
 }
 
-double CMaxEntropyDlg::function(double*x)		//функционал для МХД
+// отрисовка двух графиков
+void CMaxEntropyDlg::Graph2(double* Mass1, CPen* graph1pen, double* Mass2, CPen* graph2pen, CDC* WinDc, CRect WinPic, double AbsMax)
 {
-	double* x_imp = new double[Length];
-	memset(x_imp, 0, Length * sizeof(double));
-
-	int buff = 0;
-	for (int i = 0; i < Length; i++)
+	// поиск максимального и минимального значения
+	Min1 = Mass1[0];
+	Max1 = Mass1[0];
+	Min2 = Mass2[0];
+	Max2 = Mass2[0];
+	for (int i = 1; i < Length; i++)
 	{
-		for (int k = 0; k < Length; k++)
+		if (Mass1[i] < Min1)
 		{
-			if (i - k < 0)
-			{
-				buff = Length + (i - k);
-				x_imp[i] += x[k] * imp[buff];
-			}
-			else
-			{
-				x_imp[i] += x[k] * imp[i - k];
-			}
+			Min1 = Mass1[i];
+		}
+		if (Mass1[i] > Max1)
+		{
+			Max1 = Mass1[i];
+		}
+		if (Mass2[i] < Min2)
+		{
+			Min2 = Mass2[i];
+		}
+		if (Mass2[i] > Max2)
+		{
+			Max2 = Mass2[i];
 		}
 	}
-
-	double* xi = new double[Length];
-	memset(xi, 0, Length * sizeof(double));
-
+	if (Max2 > Max1)
+	{
+		Max = Max2;
+	}
+	else
+	{
+		Max = Max1;
+	}
+	if (Min2 < Min1)
+	{
+		Min = Min2;
+	}
+	else
+	{
+		Min = Min1;
+	}
+	// отрисовка
+	// создание контекста устройства
+	CBitmap bmp;
+	CDC* MemDc;
+	MemDc = new CDC;
+	MemDc->CreateCompatibleDC(WinDc);
+	bmp.CreateCompatibleBitmap(WinDc, WinPic.Width(), WinPic.Height());
+	CBitmap* pBmp = (CBitmap*)MemDc->SelectObject(&bmp);
+	// заливка фона графика белым цветом
+	MemDc->FillSolidRect(WinPic, RGB(255, 255, 255));
+	// отрисовка сетки координат
+	MemDc->SelectObject(&setka_pen);
+	// вертикальные линии сетки координат
+	for (double i = WinPic.Width() / 5; i < WinPic.Width(); i += WinPic.Width() / 5)
+	{
+		MemDc->MoveTo(i, 0);
+		MemDc->LineTo(i, WinPic.Height());
+	}
+	// горизонтальные линии сетки координат
+	for (double i = WinPic.Height() / 4; i < WinPic.Height(); i += WinPic.Height() / 4)
+	{
+		MemDc->MoveTo(0, i);
+		MemDc->LineTo(WinPic.Width(), i);
+	}
+	// отрисовка осей
+	MemDc->SelectObject(&osi_pen);
+	// отрисовка оси X
+	MemDc->MoveTo(0, WinPic.Height() * 9 / 10); MemDc->LineTo(WinPic.Width(), WinPic.Height() * 9 / 10);
+	// отрисовка оси Y
+	MemDc->MoveTo(WinPic.Width() * 1 / 15, WinPic.Height()); MemDc->LineTo(WinPic.Width() * 1 / 15, 0);
+	// установка прозрачного фона текста
+	MemDc->SetBkMode(TRANSPARENT);
+	// установка шрифта
+	CFont font;
+	font.CreateFontW(14.5, 0, 0, 0, FW_REGULAR, 0, 0, 0, ANSI_CHARSET, OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS || CLIP_LH_ANGLES, DEFAULT_QUALITY, DEFAULT_PITCH, _T("Century Gothic"));
+	MemDc->SelectObject(&font);
+	// подпись оси X
+	MemDc->TextOut(WinPic.Width() * 14 / 15 + 4, WinPic.Height() * 9 / 10 + 2, CString("x"));
+	// подпись оси Y
+	MemDc->TextOut(WinPic.Width() * 1 / 15 + 10, 0, CString("Ampl"));
+	// выбор области для рисования
+	xx0 = WinPic.Width() * 1 / 15; xxmax = WinPic.Width();
+	yy0 = WinPic.Height() / 10; yymax = WinPic.Height() * 9 / 10;
+	// отрисовка первого графика
+	MemDc->SelectObject(graph1pen);
+	MemDc->MoveTo(xx0, yymax + (Mass1[0] - Min) / (Max - Min) * (yy0 - yymax));
 	for (int i = 0; i < Length; i++)
 	{
-		xi[i] = exp(-1 - x_imp[i]);
+		xxi = xx0 + (xxmax - xx0) * i / (Length - 1);
+		yyi = yymax + (Mass1[i] - Min) / (Max - Min) * (yy0 - yymax);
+		MemDc->LineTo(xxi, yyi);
 	}
-
-	double* yi = new double[Length];
-	memset(yi, 0, Length * sizeof(double));
-
-	int buff1 = 0;
+	// отрисовка второго графика
+	MemDc->SelectObject(graph2pen);
+	MemDc->MoveTo(xx0, yymax + (Mass2[0] - Min) / (Max - Min) * (yy0 - yymax));
 	for (int i = 0; i < Length; i++)
 	{
-		for (int k = 0; k < Length; k++)
-		{
-			if (i - k < 0)
-			{
-				buff1 = Length + (i - k);
-				yi[i] += xi[k] * imp[buff1];
-			}
-			else
-			{
-				yi[i] += xi[k] * imp[i - k];
-			}
-		}
+		xxi = xx0 + (xxmax - xx0) * i / (Length - 1);
+		yyi = yymax + (Mass2[i] - Min) / (Max - Min) * (yy0 - yymax);
+		MemDc->LineTo(xxi, yyi);
 	}
-
-	double E = 0;
-
-	for (int i = 0; i < Length; i++)
+	// вывод числовых значений
+	// по оси X
+	MemDc->SelectObject(&font);
+	for (int i = 1; i < 6; i += 1)
 	{
-		E += (svert[i] - yi[i]) * (svert[i] - yi[i]);
+		sprintf_s(znach, "%5.1f", i * AbsMax / 6);
+		MemDc->TextOut(i * WinPic.Width() / 6, WinPic.Height() * 9 / 10 + 2, CString(znach));
 	}
-
-	return E;
-
-	delete xi;
-	delete yi;
+	// по оси Y
+	for (int i = 0; i < 5; i++)
+	{
+		sprintf_s(znach, "%5.2f", Min + i * (Max - Min) / 4);
+		MemDc->TextOut(0, WinPic.Height() * (9 - 2 * i) / 10, CString(znach));
+	}
+	// вывод на экран
+	WinDc->BitBlt(0, 0, WinPic.Width(), WinPic.Height(), MemDc, 0, 0, SRCCOPY);
+	delete MemDc;
 }
 
-double CMaxEntropyDlg::MHJ(int kk, double* x)
+double CMaxEntropyDlg::function(float* x)		//функционал для МХД
+{
+	double buff1 = 0;
+	for (int i = 0; i < Length; i++)
+	{
+		buff1 = 0;
+		for (int k = 0; k < Length; k++)
+		{
+			if (i - k < 0)
+			{
+				buff1 += x[k] * imp[Length + i - k];
+			}
+			else
+			{
+				buff1 += x[k] * imp[i - k];
+			}
+		}
+		Deconv[i] = exp(-1 - buff1);
+	}
+
+	double value = 0;
+	double buff2 = 0;
+	for (int i = 0; i < Length; i++)
+	{
+		buff2 = 0;
+		for (int k = 0; k < Length; k++)
+		{
+			if (i - k < 0)
+			{
+				buff2 += Deconv[k] * imp[Length + i - k];
+			}
+			else
+			{
+				buff2 += Deconv[k] * imp[i - k];
+			}
+		}
+		value += (svert[i] - buff2) * (svert[i] - buff2);
+	}
+	return value;
+}
+
+double CMaxEntropyDlg::MHJ(int kk, float* x)
 {
 	// kk - количество параметров; x - массив параметров
-	UpdateData(TRUE);
-	double  TAU = precision; // Точность вычислений
+	double  TAU = precision; // Точность вычислений 
 	int i, j, bs, ps;
 	double z, h, k, fi, fb;
-	calc = 0;
-	double *b = new double[kk];
-	double *y = new double[kk];
-	double *p = new double[kk];
-
-	h = 1.;
-	x[0] = 1.;
-	for (i = 1; i < kk; i++)  x[i] = (double)rand() / RAND_MAX; // Задается начальное приближение
+	double* b = new double[kk];
+	double* y = new double[kk];
+	double* p = new double[kk];
+	h = 1;
+	x[0] = 1;
+	for (i = 1; i < kk; i++)
+	{
+		x[i] = (double)rand() / RAND_MAX; // Задается начальное приближение
+	}
 
 	k = h;
-	for (i = 0; i < kk; i++)	y[i] = p[i] = b[i] = x[i];
+	for (i = 0; i < kk; i++)
+	{
+		y[i] = p[i] = b[i] = x[i];
+	}
 	fi = function(x);
-	ps = 0;   bs = 1;  fb = fi;
-
+	ps = 0;
+	bs = 1;
+	fb = fi;
 	j = 0;
 	while (1)
 	{
 		x[j] = y[j] + k;
 		z = function(x);
-		if (z >= fi) {
+		sprintf_s(err, "%.10f", z);
+		error.SetWindowTextW((CString)err);
+		if (z >= fi)
+		{
 			x[j] = y[j] - k;
 			z = function(x);
-			if (z < fi)   y[j] = x[j];
+			if (z < fi)
+			{
+				y[j] = x[j];
+			}
 			else  x[j] = y[j];
 		}
 		else  y[j] = x[j];
 		fi = function(x);
-
-		if (j < kk - 1) { j++;  continue; }
-		if (fi + 1e-8 >= fb) {
-			if (ps == 1 && bs == 0) {
-				for (i = 0; i < kk; i++) {
+		if (j < kk - 1)
+		{
+			j++;
+			continue;
+		}
+		if (fi + 1e-8 >= fb)
+		{
+			if (ps == 1 && bs == 0)
+			{
+				for (i = 0; i < kk; i++)
+				{
 					p[i] = y[i] = x[i] = b[i];
 				}
 				z = function(x);
-				bs = 1;   ps = 0;   fi = z;   fb = z;   j = 0;
+				bs = 1;
+				ps = 0;
+				fi = z;
+				fb = z;
+				j = 0;
 				continue;
 			}
 			k /= 10.;
-			if (k < TAU) break;
-			j = 0;					   
+			if (k < TAU)
+			{
+				break;
+			}
+			j = 0;
 			continue;
 		}
-
-		for (i = 0; i < kk; i++) {
+		for (i = 0; i < kk; i++)
+		{
 			p[i] = 2 * y[i] - b[i];
 			b[i] = y[i];
 			x[i] = p[i];
-
 			y[i] = x[i];
 		}
 		z = function(x);
-		fb = fi;   ps = 1;   bs = 0;   fi = z;   j = 0;
-
-		calc++; // Счетчик итераций. Можно игнорировать
-
-		//Анимация(отрисовка на каждой итерации цикла)
-
-		int buff = 0;
-		double* lam_imp = new double[Length];
-		memset(lam_imp, 0, Length * sizeof(double));
-
-		for (int i = 0; i < Length; i++)
-		{
-			for (int k = 0; k < Length; k++)
-			{
-				if (i - k < 0)
-				{
-					buff = Length + (i - k);
-					lam_imp[i] += p[k] * imp[buff];
-				}
-				else
-				{
-					lam_imp[i] += p[k] * imp[i - k];
-				}
-			}
-		}
-
-		double* xi = new double[Length];
-		memset(xi, 0, Length * sizeof(double));
-
-		for (int i = 0; i < Length; i++)
-		{
-			xi[i] = exp(-1 - lam_imp[i]);
-		}
-
-		RedrawAll();
-
-		PicDc->SelectObject(&signal_pen);
-		PicDc->MoveTo(DOTS(0, sign[0]));
-
-		for (int i = xmin; i < xmax; i++)
-		{
-			PicDc->LineTo(DOTS(i, sign[i]));
-		}
-
-
-		PicDcImp->SelectObject(&impulse_pen);
-		PicDcImp->MoveTo(DOTS_IMP(0, imp[0]));
-
-		for (int i = xmin_imp; i < xmax_imp; i++)
-		{
-			PicDcImp->LineTo(DOTS_IMP(i, imp[i]));
-		}
-
-
-		PicDcSvrk->SelectObject(&svertka_pen);
-		PicDcSvrk->MoveTo(DOTS_SVRK(0, svert[0]));
-
-		for (int i = xmin_svrk; i < xmax_svrk; i++)
-		{
-			PicDcSvrk->LineTo(DOTS_SVRK(i, svert[i]));
-		}
-
-		PicDc->SelectObject(&vosstanovl_pen);
-		PicDc->MoveTo(DOTS(0, xi[0]));
-		for (int i = xmin; i < xmax; i++)
-		{
-			PicDc->LineTo(DOTS(i, xi[i]));
-		}
+		fb = fi;
+		ps = 1;
+		bs = 0;
+		fi = z;
+		j = 0;
+		Invalidate(0);
 
 		Sleep(anim_time);
-
-		ofstream out("fb.txt");
-		out << z << endl;
-		out.close();
-
-		CString err = NULL;
-		err.Format(L"%.7f",fb);
-		err_value = err;
-		UpdateData(FALSE);
-
-		delete lam_imp;
-		delete xi;
-
 	} //  end of while(1)
-
-	iter = 0;
-	iter = calc;
 	for (i = 0; i < kk; i++)
 	{
 		x[i] = p[i];
 	}
-
 	delete b;
 	delete y;
 	delete p;
@@ -710,7 +577,7 @@ double CMaxEntropyDlg::s(int t)
 	double result = 0;
 	for (int i = 0; i < 3; i++)
 	{
-		result += A_mas[i] * exp(-((t - center_pos_mas[i]) / dispersion_mas[i])*((t - center_pos_mas[i]) / dispersion_mas[i]));
+		result += A_mas[i] * exp(-((t - center_pos_mas[i]) / dispersion_mas[i]) * ((t - center_pos_mas[i]) / dispersion_mas[i]));
 	}
 	return result;
 }
@@ -729,28 +596,97 @@ void CMaxEntropyDlg::OnBnClickedDrawSignal()
 {
 	// TODO: добавьте свой код обработчика уведомлений
 	UpdateData(TRUE);
-	RedrawAll();
+	SignalFlag = true;
+	ImpulseFlag = true;
+	SvertkaFlag = true;
 
-	double *signal = new double[Length];
-	memset(signal, 0, Length * sizeof(double));
+	sign = new double[Length];
+	imp = new double[Length];
+	svert = new double[Length];
+
+	double* signal = new double[Length];
+	double* impulse = new double[Length];
+	double* impulse_norm = new double[Length];
+	double* svertka = new double[Length];
+	double* mas_psi = new double[Length];
+	double* mas_shum = new double[Length];
+	for (int i = 0; i < Length; i++)
+	{
+		sign[i] = 0;
+		imp[i] = 0;
+		svert[i] = 0;
+		signal[i] = 0;
+		impulse[i] = 0;
+		impulse_norm[i] = 0;
+		svertka[i] = 0;
+		mas_psi[i] = 0;
+		mas_shum[i] = 0;
+	}
 
 	for (int i = 0; i < Length; i++)
 	{
 		signal[i] = s(i);
+		sign[i] = signal[i];
 	}
 
-	//генерация шума
+	///*Mashtab(signal, Length, &ymin, &ymax);
+	//RedrawSignal(-0.15 * ymax, ymax);
+	//PicDc->SelectObject(&signal_pen);
+	//PicDc->MoveTo(DOTS(0, signal[0]));*/
+
+	//for (int i = 0; i < xmax; i++)
+	//{
+	//	PicDc->LineTo(DOTS(i, signal[i]));
+	//}
+
+	double sum_imp = 0;
+	for (int i = 0; i < Length; i++)
+	{
+		impulse[i] = exp(-(i / dispersion_imp) * (i / dispersion_imp)) + exp(-((i - Length) / dispersion_imp) * ((i - Length) / dispersion_imp));
+		sum_imp += impulse[i];
+	}
+
+	for (int i = 0; i < Length; i++)
+	{
+		impulse_norm[i] = impulse[i] / sum_imp;
+		imp[i] = impulse_norm[i];
+	}
+
+	/*Mashtab(impulse_norm, Length, &ymin_imp, &ymax_imp);
+	RedrawImp(-0.15 * ymax_imp, ymax_imp);
+	PicDcImp->SelectObject(&impulse_pen);
+	PicDcImp->MoveTo(DOTS_IMP(0, impulse_norm[0]));
+
+	for (int i = 0; i < xmax_imp; i++)
+	{
+		PicDcImp->LineTo(DOTS_IMP(i, impulse_norm[i]));
+	}*/
+
+	int buff = 0;
+	for (int k = 0; k < Length; k++)
+	{
+		for (int i = 0; i < Length; i++)
+		{
+			if (k - i < 0)
+			{
+				buff = Length + (k - i);
+				svertka[k] += signal[i] * impulse_norm[buff];
+			}
+			else
+			{
+				svertka[k] += signal[i] * impulse_norm[k - i];
+			}
+		}
+	}
 
 	double d = energ_noise / 100;
 
 	double mas_energsignal = 0;
 	for (int t = 0; t < Length; t++)
 	{
-		mas_energsignal += signal[t] * signal[t];
+		mas_energsignal += svertka[t] * svertka[t];
 	}
 
-	double *mas_psi = new double[Length];
-	memset(mas_psi, 0, Length * sizeof(double));
 	for (int t = 0; t < Length; t++)
 	{
 		mas_psi[t] = Psi();
@@ -764,136 +700,76 @@ void CMaxEntropyDlg::OnBnClickedDrawSignal()
 
 	double alpha = sqrt(d * mas_energsignal / qpsi);
 
-	double *mas_shum = new double[Length];
-	memset(mas_shum, 0, Length * sizeof(double));
 	for (int i = 0; i < Length; i++)
 	{
-		mas_shum[i] = signal[i] + alpha * mas_psi[i];
-	}
-
-	Mashtab(mas_shum, Length, &mn, &mx);
-
-	memset(sign, 0, 50 * sizeof(double));
-	for (int i = 0; i < Length; i++)
-	{
-		sign[i] = mas_shum[i];
-	}
-
-	PicDc->SelectObject(&signal_pen);
-	PicDc->MoveTo(DOTS(0, mas_shum[0]));
-
-	for (int i = xmin; i < xmax; i++)
-	{
-		PicDc->LineTo(DOTS(i, mas_shum[i]));
-	}
-
-	double *impulse = new double[Length];
-	memset(impulse, 0, Length * sizeof(double));
-	memset(imp, 0, 50 * sizeof(double));
-	double *impulse_norm = new double[Length];
-	memset(impulse, 0, Length * sizeof(double));
-	double sum_imp = 0;
-
-	for (int i = 0; i < Length; i++)
-	{
-		impulse[i] = exp(-(i / dispersion_imp)*(i / dispersion_imp)) + exp(-((i - Length) / dispersion_imp)*((i - Length) / dispersion_imp));
-		sum_imp += impulse[i];
+		mas_shum[i] = svertka[i] + alpha * mas_psi[i];
 	}
 
 	for (int i = 0; i < Length; i++)
 	{
-		impulse_norm[i] = impulse[i] / sum_imp;
-		imp[i] = impulse_norm[i];
+		svert[i] = mas_shum[i];
 	}
 
-	PicDcImp->SelectObject(&impulse_pen);
-	PicDcImp->MoveTo(DOTS_IMP(0, impulse_norm[0]));
-
-	for (int i = xmin_imp; i < xmax_imp; i++)
-	{
-		PicDcImp->LineTo(DOTS_IMP(i, impulse_norm[i]));
-	}
-
-	double *svertka = new double[Length];
-	memset(svertka, 0, Length * sizeof(double));
-	memset(svert, 0, 50 * sizeof(double));
-
-	int buff = 0;
-	for (int k = 0; k < Length; k++)
-	{
-		for (int i = 0; i < Length; i++)
-		{
-			if (k - i < 0)
-			{
-				buff = Length + (k - i);
-				svertka[k] += mas_shum[i] * impulse_norm[buff];
-			}
-			else
-			{
-				svertka[k] += mas_shum[i] * impulse_norm[k - i];
-			}
-		}
-		svert[k] = svertka[k];
-	}
-
+	/*Mashtab(svert, Length, &ymin_svrk, &ymax_svrk);
+	RedrawSvrk(-0.15 * ymax_svrk, ymax_svrk);
 	PicDcSvrk->SelectObject(&svertka_pen);
-	PicDcSvrk->MoveTo(DOTS_SVRK(0, svertka[0]));
+	PicDcSvrk->MoveTo(DOTS_SVRK(0, svert[0]));
 
-	for (int i = xmin_svrk; i < xmax_svrk; i++)
+	for (int i = 0; i < xmax_svrk; i++)
 	{
-		PicDcSvrk->LineTo(DOTS_SVRK(i, svertka[i]));
-	}
+		PicDcSvrk->LineTo(DOTS_SVRK(i, svert[i]));
+	}*/
 
-	delete signal;
-	delete mas_psi;
-	delete mas_shum;
-	delete impulse;
-	delete impulse_norm;
-	delete svertka;
+	Graph1(sign, PicDc, Pic, &signal_pen, Length);
+	Graph1(imp, PicDcImp, PicImp, &impulse_pen, Length);
+	Graph1(svert, PicDcSvrk, PicSvrk, &svertka_pen, Length);
+
+	delete[] signal;
+	delete[] impulse;
+	delete[] impulse_norm;
+	delete[] svertka;
 }
 
 void CMaxEntropyDlg::OnBnClickedDraw()
 {
 	// TODO: добавьте свой код обработчика уведомлений
 	UpdateData(TRUE);
-	RedrawAll();
-
-	PicDc->SelectObject(&signal_pen);
-	PicDc->MoveTo(DOTS(0, sign[0]));
-
-	for (int i = xmin; i < xmax; i++)
+	if (!bRunTh)
 	{
-		PicDc->LineTo(DOTS(i, sign[i]));
+		StartStopOptimization.SetWindowTextW(stop);
+		if (hThread == NULL)
+		{
+			lambda = new float[Length];
+			Deconv = new double[Length];
+
+			for (int i = 0; i < Length; i++)
+			{
+				lambda[i] = 0;
+				Deconv[i] = 0;
+			}
+
+			hThread = CreateThread(NULL, 0, MyProc, this, 0, &dwThread);
+			DeconvFlag = true;
+			Graph2(sign, &signal_pen, Deconv, &vosstanovl_pen, PicDc, Pic, Length);
+
+			ofstream out("lambda.txt");
+			for (int i = 0; i < Length; i++)
+			{
+				out << lambda[i] << "\n";
+			}
+			out.close();
+		}
+		else
+		{
+			ResumeThread(hThread);
+		}
+		bRunTh = true;
 	}
-
-	PicDcImp->SelectObject(&impulse_pen);
-	PicDcImp->MoveTo(DOTS_IMP(0, imp[0]));
-
-	for (int i = xmin_imp; i < xmax_imp; i++)
+	else
 	{
-		PicDcImp->LineTo(DOTS_IMP(i, imp[i]));
+		StartStopOptimization.SetWindowTextW(start);
+		bRunTh = false;
+
+		SuspendThread(hThread);
 	}
-
-	PicDcSvrk->SelectObject(&svertka_pen);
-	PicDcSvrk->MoveTo(DOTS_SVRK(0, svert[0]));
-
-	for (int i = xmin_svrk; i < xmax_svrk; i++)
-	{
-		PicDcSvrk->LineTo(DOTS_SVRK(i, svert[i]));
-	}
-
-	int N = Length;
-	memset(lambda, 0, 50 * sizeof(double));
-	double sredniy_kvadrat_osh = MHJ(N, lambda);
-}
-
-void CMaxEntropyDlg::OnTimer(UINT_PTR nIDEvent)
-{
-	// TODO: добавьте свой код обработчика сообщений или вызов стандартного
-
-	if (nIDEvent == 100)
-	{
-		//можно было через таймер, но работает и без него
-	}
-	else CDialogEx::OnTimer(nIDEvent);
 }
