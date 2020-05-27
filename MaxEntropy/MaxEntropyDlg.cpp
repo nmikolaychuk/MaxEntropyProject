@@ -48,7 +48,7 @@ CMaxEntropyDlg::CMaxEntropyDlg(CWnd* pParent /*=nullptr*/)
 	, center_pos_3(40)
 	, dispersion_imp(4)
 	, precision(1.e-6)
-	, anim_time(200)
+	, anim_time(1)
 	, energ_noise(0)
 	, SignalFlag(false)
 	, ImpulseFlag(false)
@@ -77,6 +77,7 @@ void CMaxEntropyDlg::DoDataExchange(CDataExchange* pDX)
 	DDX_Text(pDX, IDC_EDIT_NOISE, energ_noise);
 	DDX_Control(pDX, IDC_EDIT_ERROR, error);
 	DDX_Control(pDX, IDC_DRAW, StartStopOptimization);
+	DDX_Control(pDX, IDC_EDIT_FUNC, functional);
 }
 
 BEGIN_MESSAGE_MAP(CMaxEntropyDlg, CDialogEx)
@@ -500,8 +501,18 @@ double CMaxEntropyDlg::MHJ(int kk, float* x)
 	{
 		x[j] = y[j] + k;
 		z = function(x);
-		sprintf_s(err, "%.10f", z);
+		sprintf_s(func, "%.13f", z / Length);
+		functional.SetWindowTextW((CString)func);
+
+		otkl = 0;
+		for (int i = 0; i < Length; i++)
+		{
+			otkl += (sign[i] - Deconv[i]) * (sign[i] - Deconv[i]);
+		}
+
+		sprintf_s(err, "%.13f", otkl / Length);
 		error.SetWindowTextW((CString)err);
+
 		if (z >= fi)
 		{
 			x[j] = y[j] - k;
@@ -519,6 +530,7 @@ double CMaxEntropyDlg::MHJ(int kk, float* x)
 			j++;
 			continue;
 		}
+
 		if (fi + 1e-8 >= fb)
 		{
 			if (ps == 1 && bs == 0)
@@ -556,6 +568,7 @@ double CMaxEntropyDlg::MHJ(int kk, float* x)
 		bs = 0;
 		fi = z;
 		j = 0;
+
 		Invalidate(0);
 
 		Sleep(anim_time);
@@ -567,6 +580,7 @@ double CMaxEntropyDlg::MHJ(int kk, float* x)
 	delete b;
 	delete y;
 	delete p;
+
 	return fb;
 }
 
@@ -629,17 +643,6 @@ void CMaxEntropyDlg::OnBnClickedDrawSignal()
 		signal[i] = s(i);
 		sign[i] = signal[i];
 	}
-
-	///*Mashtab(signal, Length, &ymin, &ymax);
-	//RedrawSignal(-0.15 * ymax, ymax);
-	//PicDc->SelectObject(&signal_pen);
-	//PicDc->MoveTo(DOTS(0, signal[0]));*/
-
-	//for (int i = 0; i < xmax; i++)
-	//{
-	//	PicDc->LineTo(DOTS(i, signal[i]));
-	//}
-
 	double sum_imp = 0;
 	for (int i = 0; i < Length; i++)
 	{
@@ -652,17 +655,6 @@ void CMaxEntropyDlg::OnBnClickedDrawSignal()
 		impulse_norm[i] = impulse[i] / sum_imp;
 		imp[i] = impulse_norm[i];
 	}
-
-	/*Mashtab(impulse_norm, Length, &ymin_imp, &ymax_imp);
-	RedrawImp(-0.15 * ymax_imp, ymax_imp);
-	PicDcImp->SelectObject(&impulse_pen);
-	PicDcImp->MoveTo(DOTS_IMP(0, impulse_norm[0]));
-
-	for (int i = 0; i < xmax_imp; i++)
-	{
-		PicDcImp->LineTo(DOTS_IMP(i, impulse_norm[i]));
-	}*/
-
 	int buff = 0;
 	for (int k = 0; k < Length; k++)
 	{
@@ -710,17 +702,6 @@ void CMaxEntropyDlg::OnBnClickedDrawSignal()
 	{
 		svert[i] = mas_shum[i];
 	}
-
-	/*Mashtab(svert, Length, &ymin_svrk, &ymax_svrk);
-	RedrawSvrk(-0.15 * ymax_svrk, ymax_svrk);
-	PicDcSvrk->SelectObject(&svertka_pen);
-	PicDcSvrk->MoveTo(DOTS_SVRK(0, svert[0]));
-
-	for (int i = 0; i < xmax_svrk; i++)
-	{
-		PicDcSvrk->LineTo(DOTS_SVRK(i, svert[i]));
-	}*/
-
 	Graph1(sign, PicDc, Pic, &signal_pen, Length);
 	Graph1(imp, PicDcImp, PicImp, &impulse_pen, Length);
 	Graph1(svert, PicDcSvrk, PicSvrk, &svertka_pen, Length);
@@ -789,4 +770,5 @@ void CMaxEntropyDlg::OnBnClickedButtonDropAnim()
 	Graph1(svert, PicDcSvrk, PicSvrk, &svertka_pen, Length);
 
 	error.SetWindowTextW(L"");
+	functional.SetWindowTextW(L"");
 }

@@ -5,7 +5,6 @@
 #define IDC_DRAW                        3
 #define IDC_DRAW_SIGNAL                 4
 #define IDC_GEN_NOISE                   5
-#define IDCANCEL2                       5
 #define IDD_MAXENTROPY_DIALOG           102
 #define IDR_MAINFRAME                   128
 #define IDC_AMPL_1                      1000
@@ -30,6 +29,8 @@
 #define IDC_EDIT1                       1021
 #define IDC_EDIT_ERROR                  1021
 #define ID_BUTTON_DROP_ANIM             1022
+#define IDC_EDIT_ERROR2                 1023
+#define IDC_EDIT_FUNC                   1023
 
 // Next default values for new objects
 // 

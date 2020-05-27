@@ -84,7 +84,9 @@ public:
 	double energ_noise;			//уровень шума в процентах
 	bool SignalFlag, ImpulseFlag, SvertkaFlag, DeconvFlag;
 	char err[100];
+	char func[100];
 	char znach[1000];
+	double otkl;
 
 	afx_msg void OnBnClickedDraw();				//обработчик кнопки рисования анимации
 	afx_msg void OnBnClickedDrawSignal();		//обработчик кнопки рисования сигнала
@@ -99,4 +101,5 @@ public:
 	CString start = L"Запуск";		// строки с именем кнопки для каждого случая
 	CString stop = L"Остановка";
 	afx_msg void OnBnClickedButtonDropAnim();
+	CEdit functional;
 };
